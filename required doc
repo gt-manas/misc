@@ -55,6 +55,10 @@ spark-submit --master local[4] --class com.training.streamWc.KafkaWordCount spar
 -kafka-project_2.10-1.0.jar localhost:2181 <group name> <topic name> <number of threads>
 
 
+*************************************
+Pig UDF Links : -
+https://github.com/tobie/ua-parser/pull/270/files?diff=split
+*************************************
 
 
 
