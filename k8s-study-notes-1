@@ -1,0 +1,170 @@
+
+Install K8s with Kubeadm 
+--
+apt update 
+apt install apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+
+
+add Docker key to System :-
+--------------------------
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable" | tee /etc/apt/sources.list.d/docker.list
+
+apt serach docker 
+-----------------
+apt install docker-ce docker-ce-cli
+
+Docket Cgroup Change 
+--------------------
+--exec-opt native.cgroupdriver=systemd
+
+systemctl daemon-reload
+systemctl start docker
+
+cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+br_netfilter
+EOF
+
+cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+sudo sysctl --system
+
+
+sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+
+echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+sudo apt-get update
+sudo apt-get install -y kubelet=1.23.0-00 kubeadm=1.23.0-00 kubectl=1.23.0-00
+sudo apt-mark hold kubelet kubeadm kubectl
+
+kubeadm init --pod-network-cidr=10.244.0.0/16
+
+
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+---------------------------------------
+flannel:
+--------
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+---------------------------------------
+WEAVE:
+----
+kubeadm init --pod-network-cidr=10.32.0.0/12
+
+In Worker Node :-
+
+cd /tmp
+wget https://github.com/containernetworking/plugins/releases/download/v0.8.6/cni-plugins-linux-amd64-v0.8.6.tgz
+
+mkdir -p \
+  /etc/cni/net.d \
+  /opt/cni/bin \
+  /var/run/kubernetes
+
+
+mv cni-plugins-linux-amd64-v0.8.6.tgz /opt/cni/bin
+cd /opt/cni/bin
+tar -xzvf cni-plugins-linux-amd64-v0.8.6.tgz
+
+In master :-
+-----------
+kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')&env.IPALLOC_RANGE=10.200.0.0/16"
+
+--------------------------------------
+
+sudo kubeadm init --pod-network-cidr=192.168.0.0/16
+kubectl create -f https://projectcalico.docs.tigera.io/manifests/custom-resources.yaml
+
+
+
+=========================
+kubectl config set-context $(kubectl config current-context) --namespace=dev
+-------------------------
+
+=========================
+--kubeconfig
+kubectl replace 
+kubectl scale
+=========================
+
+
+openssl genrsa -out manas.key 2048
+openssl req -new -key manas.key -out manas.csr -subj "/CN=manas/O=kplabs"
+
+cat manas.csr | base64 | tr -d '\n'
+
+
+
+
+Key request :-
+
+
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: manas-csr
+spec:
+  groups:
+  - system:authenticated
+  request: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1l6Q0NBVXNDQVFBd0hqRU9NQXdHQTFVRUF3d0ZiV0Z1WVhNeEREQUtCZ05WQkFvTUEyeGhZakNDQVNJdwpEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBT0cwSENZSGRsR2xSL0prVC94RDFkYjA2cnFPClZWczlWQ0VLY3BEbnQ5d2l1Z3hWdE9tMmdYei9adWV4R0hQaFg2S3hXRnE1bFdjQ3VNemY5QVNtZGtjY0tBc3QKb3V3TmxmV2tkanFDSk9zM0kzYkdCeUJnVGFUME5pY0cwNlZlcnNyZ2ZaRjlMMzFFNlFLSUNqb1F4MXFOazBEcwoxZzBhYmE2bGgycE9KTENLM0lRT2dCZHVRelE1aTB6M3lLdThDVnRTZzZ1NXFpb2M3T0FSUmt3bHJYYUYzdjNyCmZlVE1FdmQ1M0JUZm9JRXNGd25FaFlQWTNMR1pCbXpDdlRWR2w3T29VcTJHVzJ1UDN6ZXdqRVNxdTljZ0lVa08KUjB0djY0YUZGRnVuRHRTaUowR2p0MnkyZkloSCtITUNja1YxVThFQVlwQ0Q3NEVZdFEzdlU1cGFIeVVDQXdFQQpBYUFBTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFCbEtPMTl6eklWcFlWQm1rUVpEcmh0azJFY2xKRkU2N2pQCkhHVFdOWWV0Q1VEY05VTU1oQ2ZQMkhlOGFmZytpand6UmpwL1lKVDluckhWWDVOQjN5MmVkVXNIaWV4NWgvWW4KL0FRN21OMmlKTnEwK3U5STZsbWM4TnNRQzZDYm1NOFp1aFR2c1NvQVBrQzU1MGpqZi9xc1RlVzduOUsyb3MxNgp6RzJSVWVWaUJKQUFWbWlFc2FnN2t1bmhuVnJvU294bUhMZHo5VGtrNE1DUE9MVEk4TUdDYmtkS3p2dDJzeENCCnd0OHlPZjh3Vzh1NEs5TVhOSmJsMEgvSjRzMXRiVGJXK2dkTjVLRzFUQ2p5TEhnc1JlR1dIM2xPaVdyNFd2NGQKaFkzNitHRXFNb0laTVViaGhwaCtVclpqOEc3NE4yeWJmNW1ianlBOFNaK3AwUkU1QlR6QQotLS0tLUVORCBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0K
+  signerName: kubernetes.io/kube-apiserver-client
+  usages:
+  - digital signature
+  - key encipherment
+  - client auth
+
+
+kubectl get csr zeal-csr -o jsonpath='{.status.certificate}' | base64 -d > manas.crt
+
+kubectl config set-credentials zeal --client-certificate=zeal.crt --client-key=zeal.key
+
+
+kubectl config set-context zeal-context --cluster [YOUR-CLUSTER-HERE] --user=zeal
+
+kubectl --context=zeal-context get pods
+
+
+-----
+Role:
+-----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list", "create"]
+-------------
+Role Binding :
+-------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+- kind: User
+  name: manas
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+
+
+  ==================
+
+
+  helm $c install stable/nginx-ingress  --name nginx-ingress --set controller.publishService.enabled=true
+  helm install nginx-ingress nginx-stable/nginx-ingress --set controller.publishService.enabled=true --set controller.nginxplus=true
+
+  kubectl patch pv pv-1 -p '{"spec":{"claimRef": null}}'
+  
